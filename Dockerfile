@@ -1,39 +1,37 @@
-FROM php:8.4-fpm-alpine
+FROM php:8.4-apache
 
-# Installer les dépendances système et les extensions PHP requises pour Laravel
-RUN apk add --no-cache \
-    nginx \
-    supervisor \
-    curl \
+# 1. Installer les extensions PHP indispensables pour Laravel
+RUN apt-get update && apt-get install -y \
     libpng-dev \
-    libxml2-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libzip-dev \
+    libpq-dev \
     zip \
     unzip \
     git \
-    oniguruma-dev \
-    postgresql-dev
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_mysql pdo_pgsql zip gd
 
-RUN docker-php-ext-install pdo pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd
+# 2. Activer le module de réécriture d'URL Apache (indispensable pour les routes Laravel)
+RUN a2enmod rewrite
 
-# Installer Composer
+# 3. Changer le document root d'Apache pour pointer sur le dossier /public de Laravel
+ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf.d/
+
+# 4. Installer Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Configurer le dossier de travail
-WORKDIR /var/www
+# 5. Définir le dossier de travail et copier le code
+WORKDIR /var/www/html
+COPY . /var/www/html
 
-# Copier les fichiers du projet
-COPY . /var/www
-
-# Installer les dépendances PHP
+# 6. Installer les paquets sans les outils de dev
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Donner les permissions correctes à Laravel
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-
-# Configurer Nginx et Supervisor (pour faire tourner PHP et Nginx ensemble)
-COPY ./docker/nginx.conf /etc/nginx/nginx.conf
-COPY ./docker/supervisor.conf /etc/supervisor/conf.d/supervisor.conf
+# 7. Donner les permissions d'accès à Apache
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 EXPOSE 80
-
-CMD ["/usr/bin/supervisorctl", "-c", "/etc/supervisor/conf.d/supervisor.conf"]
