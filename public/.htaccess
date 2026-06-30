@@ -1,4 +1,15 @@
 <IfModule mod_rewrite.c>
+
+# Configuration CORS Globale pour Apache
+Header set Access-Control-Allow-Origin "*"
+Header set Access-Control-Allow-Methods "POST, GET, OPTIONS, PUT, DELETE"
+Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept"
+
+# Intercepter directement les requêtes de Preflight (OPTIONS) sans passer par PHP
+RewriteEngine On
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ - [R=200,L]
+
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
     </IfModule>
